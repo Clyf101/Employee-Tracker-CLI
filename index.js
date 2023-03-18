@@ -1,6 +1,13 @@
+const mysql = require('mysql2');
 const inquirer = require('inquirer');
-const connection = require('./connection');
-require('console.table');
+const consoleTable = require('console.table');
+
+const connection = mysql.createConnection({
+  host: 'localhost',
+  user: 'root',
+  password: 'RootRoot',
+  database: 'employee_db'
+});
 
 // Function to display all departments
 function viewDepartments() {
@@ -73,57 +80,129 @@ function addDepartment() {
 
 // Function to add a role
 function addRole() {
-    // Query the department table to display choices
-    connection.query('SELECT * FROM departments', function (err, res) {
-      if (err) throw err;
-      const departments = res.map(department => ({
-        name: department.name,
-        value: department.id
-      }));
-      inquirer.prompt([
-        {
-          type: 'input',
-          name: 'title',
-          message: 'Enter the title of the new role:',
-          validate: function (input) {
-            if (input.trim() === '') {
-              return 'Please enter a role title';
-            }
-            return true;
-          },
-        },
-        {
-          type: 'input',
-          name: 'salary',
-          message: 'Enter the salary for the new role:',
-          validate: function (input) {
-            if (!/^\d+(\.\d{1,2})?$/.test(input)) {
-              return 'Please enter a valid salary (numbers only)';
-            }
-            return true;
-          },
-        },
-        {
-          type: 'list',
-          name: 'department',
-          message: 'Select the department for the new role:',
-          choices: departments
-        }
-      ]).then((answer) => {
-        connection.query(
-          'INSERT INTO roles SET ?',
+  // Query the department table to display choices
+  connection.query('SELECT * FROM departments', function (err, res) {
+    if (err) throw err;
+    const departments = res.map(department => ({
+      name: department.name,
+      value: department.id
+    }));
+
+    function start() {
+      inquirer
+        .prompt([
           {
-            title: answer.title.trim(),
-            salary: answer.salary,
-            department_id: answer.department
+            type: 'list',
+            name: 'action',
+            message: 'What would you like to do?',
+            choices: [
+              'View all departments',
+              'View all roles',
+              'View all employees',
+              'Add a department',
+              'Add a role',
+              'Add an employee',
+              'Update an employee role',
+              'Quit'
+            ],
           },
-          function (err) {
-            if (err) throw err;
-            console.log(`\n${answer.title.trim()} role was added successfully!\n`);
-            start();
+        ])
+        .then((answer) => {
+          switch (answer.action) {
+            case 'View all departments':
+              viewDepartments();
+              break;
+            case 'View all roles':
+              viewRoles();
+              break;
+            case 'View all employees':
+              viewEmployees();
+              break;
+            case 'Add a department':
+              addDepartment();
+              break;
+            case 'Add a role':
+              addRole();
+              break;
+            case 'Add an employee':
+              addEmployee();
+              break;
+            case 'Update an employee role':
+              updateEmployeeRole();
+              break;
+            case 'Quit':
+              connection.end();
+              break;
           }
-        );
+        });
+    }
+
+    // Query the role table to display choices
+    connection.query('SELECT * FROM roles', function (err, res) {
+      if (err) throw err;
+      const roles = res.map(role => ({
+        name: role.title,
+        value: role.id
+      }));
+      connection.query('SELECT * FROM employees', function (err, res) {
+        if (err) throw err;
+        const employees = res.map(employee => ({
+          name: `${employee.first_name} ${employee.last_name}`,
+          value: employee.id
+        }));
+
+        inquirer.prompt([
+          {
+            type: 'input',
+            name: 'first_name',
+            message: "Enter the employee's first name:",
+            validate: function (input) {
+              if (input.trim() === '') {
+                return 'Please enter a first name';
+              }
+              return true;
+            },
+          },
+          {
+            type: 'input',
+            name: 'last_name',
+            message: "Enter the employee's last name:",
+            validate: function (input) {
+              if (input.trim() === '') {
+                return 'Please enter a last name';
+              }
+              return true;
+            },
+          },
+          {
+            type: 'list',
+            name: 'role_id',
+            message: "Select the employee's job title:",
+            choices: roles,
+          },
+          {
+            type: 'list',
+            name: 'manager_id',
+            message: "Select the employee's manager:",
+            choices: [...employees, { name: 'None', value: null }],
+          }
+        ]).then((answer) => {
+          connection.query(
+            'INSERT INTO employees SET ?',
+            {
+              first_name: answer.first_name.trim(),
+              last_name: answer.last_name.trim(),
+              role_id: answer.role_id,
+              manager_id: answer.manager_id,
+            },
+            function (err) {
+              if (err) throw err;
+              console.log(`\n${answer.first_name.trim()} ${answer.last_name.trim()} was added successfully!\n`);
+              start();
+            }
+          );
+        });
       });
     });
-  }
-  
+  });
+}
